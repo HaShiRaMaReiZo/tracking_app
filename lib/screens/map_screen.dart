@@ -109,7 +109,20 @@ class _MapScreenState extends State<MapScreen> {
         _lastPositionTime = now;
         await _buffer!.add(payload, idempotencyKey);
         _sender!.sendNow();
-        if (mounted) setState(() => _points = [..._points, LatLng(position.latitude, position.longitude)]);
+        if (mounted) {
+          final newPoint = LatLng(position.latitude, position.longitude);
+          setState(() {
+            _points = [..._points, newPoint];
+            _live = {
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+              'accuracy': position.accuracy,
+              'tracking_time': trackingTime,
+              'speed': position.speed >= 0 ? position.speed * 3.6 : null,
+              'updated_at': now.toUtc().toIso8601String(),
+            };
+          });
+        }
       } catch (_) {}
     }
 
@@ -265,9 +278,9 @@ class _MapScreenState extends State<MapScreen> {
                         markers: [
                           Marker(
                             point: LatLng((_live!['latitude'] as num).toDouble(), (_live!['longitude'] as num).toDouble()),
-                            width: 24,
-                            height: 24,
-                            child: const Icon(Icons.location_on, color: Colors.red, size: 24),
+                            width: 40,
+                            height: 40,
+                            child: const _CurrentLocationMarker(),
                           ),
                         ],
                       ),
@@ -304,6 +317,47 @@ class _MapScreenState extends State<MapScreen> {
             child: const Icon(Icons.my_location),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Circle + dot "you are here" marker: outer ring, inner solid dot, centered on the point.
+class _CurrentLocationMarker extends StatelessWidget {
+  const _CurrentLocationMarker();
+
+  static const double _size = 40;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: Center(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: _size,
+              height: _size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: primary.withOpacity(0.2),
+                border: Border.all(color: primary, width: 2),
+              ),
+            ),
+            Container(
+              width: _size * 0.35,
+              height: _size * 0.35,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: primary,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
