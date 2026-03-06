@@ -38,6 +38,7 @@ dependencies:
 
   # Location
   geolocator: ^13.0.2
+  permission_handler: ^11.3.1
 
   # Background
   flutter_background_service: ^5.0.5

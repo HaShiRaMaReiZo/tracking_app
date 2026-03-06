@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'location_filter_service.dart';
@@ -15,11 +18,11 @@ Future<void> initializeBackgroundTrackingService() async {
     androidConfiguration: AndroidConfiguration(
       onStart: onBackgroundStart,
       autoStart: false,
-      // Run as a normal background service to avoid
-      // strict foreground-notification requirements.
-      isForegroundMode: false,
+      isForegroundMode: true,
       notificationChannelId: 'tracking_channel',
       foregroundServiceNotificationId: 101,
+      initialNotificationTitle: 'Tracking active',
+      initialNotificationContent: 'Recording your route in the background.',
     ),
     iosConfiguration: IosConfiguration(
       autoStart: false,
@@ -32,7 +35,9 @@ Future<void> initializeBackgroundTrackingService() async {
 @pragma('vm:entry-point')
 Future<bool> onBackgroundStart(ServiceInstance service) async {
   if (service is AndroidServiceInstance) {
-    service.on('setAsForeground').listen((_) => service.setAsForegroundService());
+    // Promote to foreground — notification channel is pre-created in MainActivity.kt
+    // so this works even before POST_NOTIFICATIONS is granted.
+    service.setAsForegroundService();
   }
   var stopped = false;
   service.on('stopService').listen((_) {
@@ -110,6 +115,14 @@ Future<bool> onBackgroundStart(ServiceInstance service) async {
 }
 
 Future<void> startBackgroundTracking({required int sessionId, required String deviceId}) async {
+  // Android 13+ requires POST_NOTIFICATIONS to show the foreground service notification.
+  if (Platform.isAndroid) {
+    final status = await Permission.notification.status;
+    if (!status.isGranted) {
+      await Permission.notification.request();
+    }
+  }
+
   // Stop any existing background isolate first so stale code never runs.
   final service = FlutterBackgroundService();
   if (await service.isRunning()) {
