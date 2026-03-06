@@ -97,25 +97,9 @@ class ApiClient {
     await _dio.post('/sessions/$sessionId/stop');
   }
 
-  Future<Map<String, dynamic>?> getSessionLive(int sessionId) async {
-    try {
-      final response = await _dio.get('/sessions/$sessionId/live');
-      return response.data as Map<String, dynamic>;
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return null;
-      rethrow;
-    }
-  }
-
   Future<List<dynamic>> getSessionLocations(int sessionId) async {
     final response = await _dio.get('/sessions/$sessionId/locations');
     return response.data is List ? response.data as List<dynamic> : [];
-  }
-
-  /// POST single tracking point. Returns response body. On 4xx/5xx throws.
-  Future<Map<String, dynamic>> postTracking(Map<String, dynamic> body) async {
-    final response = await _dio.post('/trackings', data: body);
-    return response.data as Map<String, dynamic>;
   }
 
   /// POST batch of points. Returns { accepted, failed }. On 5xx throws.

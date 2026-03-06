@@ -1,17 +1,12 @@
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config/api_config.dart';
-import 'api_client.dart';
 import 'location_filter_service.dart';
-import 'tracking_buffer_service.dart';
-import 'tracking_sender_service.dart';
+import 'tracking_local_store.dart';
 
 const _keySessionId = 'bg_tracking_session_id';
 const _keyDeviceId = 'bg_tracking_device_id';
-const _keyToken = 'auth_token';
 
 /// Call from main() after WidgetsFlutterBinding.ensureInitialized().
 Future<void> initializeBackgroundTrackingService() async {
@@ -53,17 +48,7 @@ Future<bool> onBackgroundStart(ServiceInstance service) async {
     return true;
   }
 
-  final token = await _readToken();
-  if (token == null || token.isEmpty) {
-    service.stopSelf();
-    return true;
-  }
-
-  final api = ApiClient(baseUrl: kApiBaseUrl, token: token);
-  final buffer = TrackingBufferService();
   final filter = LocationFilterService();
-  final sender = TrackingSenderService(api, buffer);
-  sender.startSending();
 
   Position? lastPosition;
   DateTime? lastPositionTime;
@@ -79,16 +64,17 @@ Future<bool> onBackgroundStart(ServiceInstance service) async {
 
       final now = DateTime.now();
       final trackingTime = now.toUtc().toIso8601String();
-      final idempotencyKey = '${deviceId}_${position.timestamp.millisecondsSinceEpoch}';
+      final durationSeconds = lastPositionTime != null
+          ? now.difference(lastPositionTime!).inSeconds
+          : 0;
       final payload = <String, dynamic>{
         'device_id': deviceId,
         'session_id': sessionId,
         'latitude': position.latitude,
         'longitude': position.longitude,
         'accuracy': position.accuracy,
-        'duration': 0,
+        'duration': durationSeconds,
         'tracking_time': trackingTime,
-        'idempotency_key': idempotencyKey,
       };
       if (position.speed >= 0) payload['speed'] = position.speed * 3.6;
       if (lastPosition != null && lastPositionTime != null) {
@@ -98,8 +84,8 @@ Future<bool> onBackgroundStart(ServiceInstance service) async {
       }
       lastPosition = position;
       lastPositionTime = now;
-      await buffer.add(payload, idempotencyKey);
-      sender.sendNow();
+      // Store locally only. All points are uploaded in one batch when the session stops.
+      await TrackingLocalStore.insertFromPayload(payload);
     } catch (_) {}
   }
 
@@ -123,23 +109,19 @@ Future<bool> onBackgroundStart(ServiceInstance service) async {
   return true;
 }
 
-Future<String?> _readToken() async {
-  try {
-    const storage = FlutterSecureStorage(
-      aOptions: AndroidOptions(encryptedSharedPreferences: true),
-    );
-    return await storage.read(key: _keyToken);
-  } catch (_) {
-    return null;
-  }
-}
-
 Future<void> startBackgroundTracking({required int sessionId, required String deviceId}) async {
+  // Stop any existing background isolate first so stale code never runs.
+  final service = FlutterBackgroundService();
+  if (await service.isRunning()) {
+    service.invoke('stopService');
+    // Give the isolate time to exit before starting a new one.
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+  }
+
   final prefs = await SharedPreferences.getInstance();
   await prefs.setInt(_keySessionId, sessionId);
   await prefs.setString(_keyDeviceId, deviceId);
 
-  final service = FlutterBackgroundService();
   await service.startService();
 }
 

@@ -2,11 +2,11 @@ import 'package:geolocator/geolocator.dart';
 
 class LocationFilterConfig {
   const LocationFilterConfig({
-    this.maxAccuracyMeters = 20,
+    this.maxAccuracyMeters = 50, // accept up to 50 m accuracy (was 20)
     this.minMovementMeters = 5,
-    this.jumpMaxDisplacementAtLowSpeedM = 15,
+    this.jumpMaxDisplacementAtLowSpeedM = 50, // allow larger jumps at low speed
     this.jumpLowSpeedKmh = 5,
-    this.jumpDisplacementVsExpectedRatio = 2.5,
+    this.jumpDisplacementVsExpectedRatio = 3.0,
   });
 
   final double maxAccuracyMeters;

@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/sessions_screen.dart';
 import 'services/auth_service.dart';
+import 'services/background_tracking_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeBackgroundTrackingService();
   runApp(const TrackingApp());
 }
 

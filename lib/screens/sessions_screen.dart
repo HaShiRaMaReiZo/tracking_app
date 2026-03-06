@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/device_id_service.dart';
+import '../services/tracking_upload_service.dart';
 import 'login_screen.dart';
 import 'map_screen.dart';
 
@@ -93,14 +94,31 @@ class _SessionsScreenState extends State<SessionsScreen> {
   }
 
   Future<void> _stopSession(int id) async {
+    // First, try to flush any locally stored points for this session.
     try {
-      await widget.authService.apiClient.stopSession(id);
-      if (!mounted) return;
-      setState(() => _activeSessionId = null);
-      _loadSessions();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = ApiClient.errorMessage(e));
+      await TrackingUploadService(widget.authService.apiClient).uploadSession(id);
+    } catch (_) {}
+
+    const maxAttempts = 3;
+    const retryDelays = [Duration(seconds: 1), Duration(seconds: 2)];
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await widget.authService.apiClient.stopSession(id);
+        if (!mounted) return;
+        setState(() => _activeSessionId = null);
+        _loadSessions();
+        return;
+      } catch (e) {
+        if (!mounted) return;
+        final isRetriable = ApiClient.isRetriableError(e);
+        if (!isRetriable || attempt == maxAttempts - 1) {
+          setState(() => _error = ApiClient.errorMessage(e));
+          return;
+        }
+        if (attempt < retryDelays.length) {
+          await Future<void>.delayed(retryDelays[attempt]);
+        }
+      }
     }
   }
 

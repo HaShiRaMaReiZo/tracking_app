@@ -38,7 +38,6 @@ dependencies:
 
   # Location
   geolocator: ^13.0.2
-  permission_handler: ^11.3.1
 
   # Background
   flutter_background_service: ^5.0.5
@@ -53,7 +52,6 @@ dependencies:
   flutter_secure_storage: ^9.2.2
 
   # Device ID
-  device_info_plus: ^11.1.1
   uuid: ^4.5.1
 
   # Map (OSM, no API key required)

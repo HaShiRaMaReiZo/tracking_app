@@ -42,27 +42,6 @@ class TrackingSenderService {
       return;
     }
 
-    if (pending.length == 1) {
-      final point = pending.first;
-      try {
-        await _api.postTracking(point.payload);
-        await _buffer.remove(point.id);
-        _backoffSec = _initialBackoffSec;
-      } catch (e) {
-        if (ApiClient.isValidationError(e)) {
-          await _buffer.remove(point.id);
-          return;
-        }
-        if (ApiClient.isRetriableError(e)) {
-          await _buffer.markRetry(point.id, ApiClient.errorMessage(e));
-          _backoffSec = (_backoffSec * 2).clamp(_initialBackoffSec, _maxBackoffSec);
-        } else {
-          await _buffer.remove(point.id);
-        }
-      }
-      return;
-    }
-
     final points = pending.map((p) => p.payload).toList();
     try {
       final result = await _api.postTrackingBatch(points);
