@@ -301,6 +301,13 @@ class _MapScreenState extends State<MapScreen> {
       debugPrint('[STOP] Upload complete');
     } catch (e) {
       debugPrint('[STOP] Upload error: $e');
+      if (!mounted) return;
+      setState(() {
+        _error = ApiClient.errorMessage(e);
+        _stopping = false;
+      });
+      // Do NOT stop the session on the server if upload failed.
+      return;
     }
 
     const maxAttempts = 3;

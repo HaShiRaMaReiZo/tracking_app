@@ -94,10 +94,18 @@ class _SessionsScreenState extends State<SessionsScreen> {
   }
 
   Future<void> _stopSession(int id) async {
-    // First, try to flush any locally stored points for this session.
+    // First, flush any locally stored points for this session.
     try {
-      await TrackingUploadService(widget.authService.apiClient).uploadSession(id);
-    } catch (_) {}
+      await TrackingUploadService(widget.authService.apiClient)
+          .uploadSession(id);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = ApiClient.errorMessage(e);
+      });
+      // Do NOT stop the session on the server if upload failed.
+      return;
+    }
 
     const maxAttempts = 3;
     const retryDelays = [Duration(seconds: 1), Duration(seconds: 2)];

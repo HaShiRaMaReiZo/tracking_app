@@ -5,7 +5,7 @@
 /// Must end with /api so paths like /register become /api/register.
 const String kApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://location-tracking-b3jv.onrender.com/api',
+  defaultValue: 'https://location-tracker.vnapp.xyz/api',
 );
 
 /// Optional WebSocket URL when using Laravel Reverb.

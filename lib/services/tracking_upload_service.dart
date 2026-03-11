@@ -11,6 +11,8 @@ class TrackingUploadService {
   /// Upload all unsynced points for the given session.
   /// Keeps local data if network/server fails.
   Future<void> uploadSession(int sessionId) async {
+    // NOTE: Callers rely on this method throwing when upload fails so they can
+    // decide whether to proceed with stopping the session.
     final db = await TrackingDb.instance();
     final rows = await db.query(
       TrackingDb.tableTrackingPoints,
@@ -40,7 +42,8 @@ class TrackingUploadService {
       for (var i = 0; i < points.length; i += batchSize) {
         final end = (i + batchSize).clamp(0, points.length);
         final slice = points.sublist(i, end);
-        debugPrint('[UPLOAD] Sending batch ${i ~/ batchSize + 1}: ${slice.length} points');
+        debugPrint(
+            '[UPLOAD] Sending batch ${i ~/ batchSize + 1}: ${slice.length} points');
         await _apiClient.postTrackingBatch(
           slice.map((p) => Map<String, dynamic>.from(p)).toList(),
         );
@@ -55,6 +58,8 @@ class TrackingUploadService {
       debugPrint('[UPLOAD] All rows marked as synced');
     } catch (e) {
       debugPrint('[UPLOAD] ERROR sending batch: $e — rows kept for retry');
+      // Rethrow so callers know upload failed and can avoid stopping session.
+      rethrow;
     }
   }
 }
