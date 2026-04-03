@@ -25,6 +25,12 @@ class TrackingDb {
             accuracy REAL,
             tracking_time TEXT NOT NULL,
             duration REAL,
+            speed REAL,
+            device_id TEXT,
+            last_lat REAL,
+            last_lng REAL,
+            last_timestamp TEXT,
+            idempotency_key TEXT,
             is_synced INTEGER NOT NULL DEFAULT 0
           )
         ''');
@@ -32,8 +38,29 @@ class TrackingDb {
           'CREATE INDEX idx_tracking_session_time ON $tableTrackingPoints(session_id, tracking_time)',
         );
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE $tableTrackingPoints ADD COLUMN speed REAL',
+          );
+          await db.execute(
+            'ALTER TABLE $tableTrackingPoints ADD COLUMN device_id TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE $tableTrackingPoints ADD COLUMN last_lat REAL',
+          );
+          await db.execute(
+            'ALTER TABLE $tableTrackingPoints ADD COLUMN last_lng REAL',
+          );
+          await db.execute(
+            'ALTER TABLE $tableTrackingPoints ADD COLUMN last_timestamp TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE $tableTrackingPoints ADD COLUMN idempotency_key TEXT',
+          );
+        }
+      },
     );
     return _db!;
   }
 }
-

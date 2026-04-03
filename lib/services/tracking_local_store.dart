@@ -19,6 +19,8 @@ class TrackingLocalStore {
 
     final accuracy = _toDouble(payload['accuracy']);
     final duration = _toDouble(payload['duration']);
+    final speed = _toDouble(payload['speed']);
+    final deviceId = payload['device_id']?.toString();
 
     final rawTime = payload['tracking_time']?.toString();
     final trackingTime = _parseIsoOrNow(rawTime);
@@ -30,6 +32,12 @@ class TrackingLocalStore {
       'accuracy': accuracy,
       'tracking_time': trackingTime.toUtc().toIso8601String(),
       'duration': duration,
+      'speed': speed,
+      'device_id': deviceId,
+      'last_lat': _toDouble(payload['last_lat']),
+      'last_lng': _toDouble(payload['last_lng']),
+      'last_timestamp': payload['last_timestamp']?.toString(),
+      'idempotency_key': payload['idempotency_key']?.toString(),
       'is_synced': 0,
     });
     debugPrint('[SQLITE] Stored point: session=$sessionId lat=$lat lng=$lng accuracy=$accuracy duration=$duration');

@@ -27,12 +27,17 @@ class TrackingUploadService {
     final points = rows
         .map((row) => <String, dynamic>{
               'session_id': row['session_id'],
-              'device_id': 'local',
+              'device_id': row['device_id'] ?? 'local',
               'latitude': row['latitude'],
               'longitude': row['longitude'],
               'accuracy': row['accuracy'],
               'duration': row['duration'] ?? 0,
               'tracking_time': row['tracking_time'],
+              'speed': row['speed'],
+              'last_lat': row['last_lat'],
+              'last_lng': row['last_lng'],
+              'last_timestamp': row['last_timestamp'],
+              'idempotency_key': row['idempotency_key'],
             })
         .toList();
 

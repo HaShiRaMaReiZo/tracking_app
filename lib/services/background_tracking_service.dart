@@ -72,6 +72,7 @@ Future<bool> onBackgroundStart(ServiceInstance service) async {
       final durationSeconds = lastPositionTime != null
           ? now.difference(lastPositionTime!).inSeconds
           : 0;
+      final idempotencyKey = '${deviceId}_${position.timestamp.millisecondsSinceEpoch}';
       final payload = <String, dynamic>{
         'device_id': deviceId,
         'session_id': sessionId,
@@ -80,8 +81,20 @@ Future<bool> onBackgroundStart(ServiceInstance service) async {
         'accuracy': position.accuracy,
         'duration': durationSeconds,
         'tracking_time': trackingTime,
+        'idempotency_key': idempotencyKey,
       };
-      if (position.speed >= 0) payload['speed'] = position.speed * 3.6;
+      if (position.speed >= 0) {
+        payload['speed'] = position.speed * 3.6;
+      } else if (lastPosition != null && lastPositionTime != null && durationSeconds > 0) {
+        final distanceM = Geolocator.distanceBetween(
+          lastPosition!.latitude,
+          lastPosition!.longitude,
+          position.latitude,
+          position.longitude,
+        );
+        final speedKmh = (distanceM / 1000) / (durationSeconds / 3600);
+        if (speedKmh >= 0) payload['speed'] = speedKmh;
+      }
       if (lastPosition != null && lastPositionTime != null) {
         payload['last_lat'] = lastPosition!.latitude;
         payload['last_lng'] = lastPosition!.longitude;

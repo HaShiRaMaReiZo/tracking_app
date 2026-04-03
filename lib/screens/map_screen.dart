@@ -186,7 +186,19 @@ class _MapScreenState extends State<MapScreen> {
       'tracking_time': trackingTime,
       'idempotency_key': idempotencyKey,
     };
-    if (position.speed >= 0) payload['speed'] = position.speed * 3.6;
+    // Use device-reported speed when available; otherwise compute from distance/duration
+    if (position.speed >= 0) {
+      payload['speed'] = position.speed * 3.6;
+    } else if (_lastPosition != null && _lastPositionTime != null && durationSeconds > 0) {
+      final distanceM = Geolocator.distanceBetween(
+        _lastPosition!.latitude,
+        _lastPosition!.longitude,
+        position.latitude,
+        position.longitude,
+      );
+      final speedKmh = (distanceM / 1000) / (durationSeconds / 3600);
+      if (speedKmh >= 0) payload['speed'] = speedKmh;
+    }
     if (_lastPosition != null && _lastPositionTime != null) {
       payload['last_lat'] = _lastPosition!.latitude;
       payload['last_lng'] = _lastPosition!.longitude;
@@ -216,23 +228,23 @@ class _MapScreenState extends State<MapScreen> {
       final points = <LatLng>[];
       for (final loc in list) {
         if (loc is! Map<String, dynamic>) continue;
+        // API shape (example): { start_tracking: { snapped_points: [{ snapped_lat, snapped_lon }] }, ... }
         final start = loc['start_tracking'] as Map<String, dynamic>?;
-        if (start != null &&
-            start['latitude'] != null &&
-            start['longitude'] != null) {
+        final startSnap = _firstSnapPoint(start);
+        if (startSnap != null) {
           points.add(LatLng(
-            _toDouble(start['latitude']),
-            _toDouble(start['longitude']),
+            _toDouble(startSnap['snapped_lat']),
+            _toDouble(startSnap['snapped_lon']),
           ));
         }
-        if (loc['end_tracking'] is Map) {
-          final end = loc['end_tracking'] as Map<String, dynamic>;
-          if (end['latitude'] != null && end['longitude'] != null) {
-            points.add(LatLng(
-              _toDouble(end['latitude']),
-              _toDouble(end['longitude']),
-            ));
-          }
+
+        final end = loc['end_tracking'] as Map<String, dynamic>?;
+        final endSnap = _firstSnapPoint(end);
+        if (endSnap != null) {
+          points.add(LatLng(
+            _toDouble(endSnap['snapped_lat']),
+            _toDouble(endSnap['snapped_lon']),
+          ));
         }
       }
       setState(() {
@@ -259,6 +271,15 @@ class _MapScreenState extends State<MapScreen> {
     return double.parse(v.toString());
   }
 
+  static Map<String, dynamic>? _firstSnapPoint(Map<String, dynamic>? tracking) {
+    if (tracking == null) return null;
+    final snaps = tracking['snapped_points'];
+    if (snaps is List && snaps.isNotEmpty && snaps.first is Map) {
+      return Map<String, dynamic>.from(snaps.first as Map);
+    }
+    return null;
+  }
+
   Future<void> _setInitialCenterFromDevice() async {
     try {
       var status = await Geolocator.checkPermission();
@@ -266,7 +287,9 @@ class _MapScreenState extends State<MapScreen> {
         status = await Geolocator.requestPermission();
       }
       if (status == LocationPermission.denied ||
-          status == LocationPermission.deniedForever) return;
+          status == LocationPermission.deniedForever) {
+        return;
+      }
 
       final position = await Geolocator.getCurrentPosition(
         locationSettings:
@@ -507,7 +530,7 @@ class _CurrentLocationMarker extends StatelessWidget {
               height: _size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: primary.withOpacity(0.2),
+                color: primary.withValues(alpha: 0.2),
                 border: Border.all(color: primary, width: 2),
               ),
             ),

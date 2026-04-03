@@ -5,7 +5,7 @@ import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../config/api_config.dart';
 
 class ApiClient {
-  ApiClient({String? baseUrl, String? token}) {
+  ApiClient({String? baseUrl, String? initialToken}) {
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl ?? kApiBaseUrl,
@@ -20,8 +20,9 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          if (_token != null && _token!.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $_token';
+          final t = token;
+          if (t != null && t.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $t';
           }
           return handler.next(options);
         },
@@ -37,14 +38,11 @@ class ApiClient {
         error: true,
       ),
     );
-    if (token != null) _token = token;
+    if (initialToken != null) token = initialToken;
   }
 
   late final Dio _dio;
-  String? _token;
-
-  String? get token => _token;
-  set token(String? value) => _token = value;
+  String? token;
 
   String get baseUrl => _dio.options.baseUrl;
 
@@ -98,8 +96,25 @@ class ApiClient {
   }
 
   Future<List<dynamic>> getSessionLocations(int sessionId) async {
-    final response = await _dio.get('/sessions/$sessionId/locations');
-    return response.data is List ? response.data as List<dynamic> : [];
+    // Backends in the wild differ:
+    // - some return a raw list at GET /sessions/{id}/locations
+    // - others return a Laravel Resource collection: { "data": [ ... ] }
+    // - others expose the same collection under /location-history?session_id={id}
+    try {
+      final response = await _dio.get('/sessions/$sessionId/locations');
+      return _extractListFromResponse(response.data);
+    } on DioException catch (e) {
+      // If the endpoint doesn't exist (or method not allowed), try the alternative.
+      final status = e.response?.statusCode;
+      if (status == 404 || status == 405) {
+        final response = await _dio.get(
+          '/location-history',
+          queryParameters: {'session_id': sessionId},
+        );
+        return _extractListFromResponse(response.data);
+      }
+      rethrow;
+    }
   }
 
   /// POST batch of points. Returns { accepted, failed }. On 5xx throws.
@@ -142,6 +157,12 @@ class ApiClient {
   static String errorMessage(dynamic error) {
     if (error is DioException) {
       final status = error.response?.statusCode;
+      // Common socket-level wording on Android: "Connection reset by peer".
+      final lower = (error.message ?? '').toLowerCase();
+      if (error.type == DioExceptionType.connectionError &&
+          (lower.contains('connection reset') || lower.contains('reset by peer'))) {
+        return 'Connection was reset by the server. Try again (or switch network/VPN) and check the API is healthy.';
+      }
       if (status == 404) {
         return 'Not found (404). Check that API base URL ends with /api.';
       }
@@ -155,5 +176,11 @@ class ApiClient {
       return error.message ?? 'Request failed';
     }
     return error.toString();
+  }
+
+  static List<dynamic> _extractListFromResponse(dynamic data) {
+    if (data is List) return data;
+    if (data is Map && data['data'] is List) return data['data'] as List;
+    return const <dynamic>[];
   }
 }
